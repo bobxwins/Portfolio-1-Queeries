@@ -6,12 +6,11 @@ create table users (
 UserID serial primary key, 
 name varchar(200),
 age int,
-mail varchar(200),language varchar(200),
-password int
+USERNAME varchar(200),language varchar(200)
 
 )
 ;
-insert into users(name,age,mail,language)
+insert into users(name,age,username,language)
 values ('Ali',30,'ali@ruc.dk','[Danish, English]'),
 ('Bob-Winston',23,'bob@ruc.dk','[Danish, English]'),
 ( 'Lenka',23,'lenka@ruc.dk','[English, Slovac]'),
@@ -315,11 +314,32 @@ Alter table title_ratings drop constraint if exists titleRatings_fkey;
  ALTER TABLE title_principals ADD CONSTRAINT titleprincipals_pkey primary KEY (tconst,ordering) ;
 
 
- Alter table user_TitleRate add constraint userTitleRate_fkey foreign key (tconst) references  title_Basicsnew (tconst) ;
  
- Alter table user_NameRate add constraint user_NameRate_pkey foreign key (nconst) references  name_Basicsnew (nconst) ;
+  Alter table user_namerate drop constraint if exists user_nameRate_pkey;
+	
+	
+ Alter table user_NameRate add constraint user_NameRate_pkey primary key (nconst,userid) ;
  
- Alter table user_NameRate add constraint user_NameRate_fkey foreign key (nconst) references  name_Basicsnew (nconst) ;
+ 
+  Alter table user_namerate drop constraint if exists user_nameRate_fkey;
+	
+   Alter table user_namerate drop constraint if exists user_nameRate_fkey2;
+ 
+ Alter table user_NameRate add constraint user_NameRate_fkey foreign key (nconst) references name_Basicsnew (nconst) ;
+ 
+  Alter table user_NameRate add constraint user_NameRate_fkey2 foreign key (userid) references  users (userid) ;
+ 
+  
+  Alter table user_titlerate drop constraint if exists user_titleRate_pkey;
+	
+  Alter table user_TitleRate add constraint user_TitleRate_pkey primary key (Tconst,userid) ;
+	
+  Alter table user_titlerate drop constraint if exists user_titlerate_fkey;
+	  Alter table user_titlerate drop constraint if exists user_titlerate_fkey2;
+  Alter table user_TitleRate add constraint userTitleRate_fkey foreign key (tconst) references  title_Basicsnew (tconst) ;
+	Alter table user_TitleRate add constraint userTitleRate_fkey2 foreign key (userid) references  users (userid) ;
+	
+  
 		
 ALTER TABLE wi drop CONSTRAINT if exists wi_fkey;
 
