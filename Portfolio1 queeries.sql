@@ -386,9 +386,12 @@ $$;
 /* Here we used a function that returns a table as a result.  Then we inserted the values into in search_history, therefore we used a concatenation operator which linked titles, plot, characters and Names.  The Natural join was used because  it considers only those pairs of tuples with the same value on those attributes that appear in the schemas of both relations.  As the function needs to be flexible in the sense it doesn’t care about case of letter, we used the ‘lower function’ that converts all letters in the specified stringiest to lowercase. For this purpose we could also use ‘upper function’ which would convert all letters in the specified string to uppercase. At the end we used a select statement of userid, Titles, Plot, Characters and Names and the result was respective tconst and primary title. */
 
 
-/* D.3 finished*/ 
+/*select 'User has already given this rating to this title' as Notice */
 
- drop function if exists rATE(int,varchar,int)  ;
+/*return query select 'User has already given this rating to this title' as Notice; */
+
+
+drop function if exists rATE(int,varchar,int)  ;
 
 create or replace function  rate(USERID int, tconst varchar(200) ,rate int   ) 
 
@@ -418,17 +421,17 @@ AS $$
 				
 				 /* if a user has already rated a movie, and tries to rate the same movie with the same value, 
 					samerating boolean returns true and nothing will change in any table */
-
-				  
+ 
 				samerating := 'true' ; 
-				
+				 RETURN QUERY select  title_basicsnew.tconst , CONCAT('You have already given "',title_basicsnew.primarytitle, '" this rating')     , title_basicsnew.numvotes, title_basicsnew.averagerating from title_basicsnew where title_basicsnew.tconst= rate.tconst;
+	 
 				else  samerating := 'false' ; 
 				
 				end if;
 			   
 				if UserHasRated = 'true' and samerating = 'false' then restore := 'true';
 	/* if user has already rated a tconst, and attempts to give it a different rating this time, 
-	then update averagerating and the individrating */
+	then update averagerating */
 	
 			  update title_Basicsnew 
 			 set averagerating =  round(((title_Basicsnew.averagerating) * (title_Basicsnew.numvotes )
@@ -459,8 +462,7 @@ AS $$
                                     ;
 					 												
 		 update title_basicsnew 
-		 set  numvotes =   ( title_basicsnew.numvotes +
- 1)   
+		 set  numvotes =( title_basicsnew.numvotes +1)   
  from user_titlerate
  where title_Basicsnew.tconst = rate.tconst and user_titlerate.userid = rate.userid  ;																
  		 
@@ -468,8 +470,7 @@ AS $$
 			 set averagerating =  round((title_Basicsnew.averagerating * (title_Basicsnew.numvotes -1)
 	 +  rate) / (title_Basicsnew.numvotes),2 )  
 	 where title_Basicsnew.tconst = rate.tconst ;
-	 
-	 
+	  
          RETURN QUERY 
 				 select  title_basicsnew.tconst ,title_basicsnew.primarytitle , title_basicsnew.numvotes  , title_basicsnew.averagerating 
 				 from title_basicsnew 
@@ -482,7 +483,10 @@ AS $$
 $$ 
 LANGUAGE plpgsql;
   
-select * from rate(1, 'tt9910206',6 );
+select * from rate(1, 'tt9910206',7 );
+
+  
+select * from rate(2, 'tt9910206',6 );
  
  
 
