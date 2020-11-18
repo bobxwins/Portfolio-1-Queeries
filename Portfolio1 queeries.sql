@@ -394,7 +394,7 @@ create or replace function  rate(USERID int, tconst varchar(200) ,rate int   )
 
 returns table (
   
-  tconst_ varchar(200), primarytitle text, numvotes int, averagerating numeric
+  tconst_ varchar(200), primarytitle text, numvotes int, MyRating numeric
 	)    
 AS $$
  
@@ -433,7 +433,7 @@ AS $$
 			  update title_Basicsnew 
 			 set averagerating =  round(((title_Basicsnew.averagerating) * (title_Basicsnew.numvotes )
 	 -(select individrating_title from user_titlerate where rate.tconst = user_titlerate.tconst and
-					 user_titlerate.userid = rate.userid)  +  rate)  / (title_Basicsnew.numvotes),9 )  
+					 user_titlerate.userid = rate.userid)  +  rate)  / (title_Basicsnew.numvotes),2 )  
 	 where title_Basicsnew.tconst = rate.tconst ;
 	 
   RETURN QUERY 
@@ -459,15 +459,14 @@ AS $$
                                     ;
 					 												
 		 update title_basicsnew 
-		 set  numvotes =    title_basicsnew.numvotes +
- (select count( user_titlerate.tconst ) / count( user_titlerate.tconst )   
- from user_titlerate   
- where  rate.tconst =  user_titlerate.tconst and rate.userid = user_titlerate.userid )  
- where title_Basicsnew.tconst = rate.tconst  ;																
+		 set  numvotes =   ( title_basicsnew.numvotes +
+ 1)   
+ from user_titlerate
+ where title_Basicsnew.tconst = rate.tconst and user_titlerate.userid = rate.userid  ;																
  		 
 		 	 update title_Basicsnew 
 			 set averagerating =  round((title_Basicsnew.averagerating * (title_Basicsnew.numvotes -1)
-	 +  rate) / (title_Basicsnew.numvotes),9 )  
+	 +  rate) / (title_Basicsnew.numvotes),2 )  
 	 where title_Basicsnew.tconst = rate.tconst ;
 	 
 	 
@@ -483,11 +482,8 @@ AS $$
 $$ 
 LANGUAGE plpgsql;
   
-select * from rate(1, 'tt9910206',7 );
+select * from rate(1, 'tt9910206',8 );
  
-select * from Rate(1, 'tt9910206',8);
-
-select * from Rate(1,'tt9910206',7);
  
 
 /*not finished 
