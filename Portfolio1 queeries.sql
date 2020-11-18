@@ -149,7 +149,9 @@ titletype  varchar(800),
 		 poster varchar(200),
 		 awards varchar (200), 
 		 plot text,
-		 averagerating decimal, 
+		 averagerating decimal,
+		constraint valid_number 
+      check (averagerating <= 10), 
 		 numvotes int
  
  
@@ -204,7 +206,8 @@ SELECT tconst, regexp_split_to_table(genres,',')  from title_basics
 drop table if exists user_NameRate;
 create table user_NameRate(
 UserID int REFERENCES users(userid),
-Name_individRating int , 
+Name_individRating int , constraint valid_number 
+      check (Name_individRating <= 10 and Name_individRating > 0),
 nconst varchar(200), userNameRate_Date date)
  
 ;
@@ -216,6 +219,9 @@ drop table if exists user_TitleRate;
 create table user_TitleRate(
 UserID int REFERENCES users(userid),
 individRating_Title int , 
+constraint valid_number 
+check (individRating_Title <= 10 and individRating_Title > 0),
+			
 tconst varchar(200), userTitleRate_Date date )
 
  
@@ -319,7 +325,11 @@ Alter table title_ratings drop constraint if exists titleRatings_fkey;
 	
 	
  Alter table user_NameRate add constraint user_NameRate_pkey primary key (nconst,userid) ;
-
+ 
+ 
+  Alter table user_namerate drop constraint if exists user_nameRate_fkey;
+	
+   Alter table user_namerate drop constraint if exists user_nameRate_fkey2;
  
  Alter table user_NameRate add constraint user_NameRate_fkey foreign key (nconst) references name_Basicsnew (nconst) ;
  
@@ -329,9 +339,11 @@ Alter table title_ratings drop constraint if exists titleRatings_fkey;
   Alter table user_titlerate drop constraint if exists user_titleRate_pkey;
 	
   Alter table user_TitleRate add constraint user_TitleRate_pkey primary key (Tconst,userid) ;
-
+	
+  Alter table user_titlerate drop constraint if exists user_titlerate_fkey;
+	  Alter table user_titlerate drop constraint if exists user_titlerate_fkey2;
   Alter table user_TitleRate add constraint userTitleRate_fkey foreign key (tconst) references  title_Basicsnew (tconst) ;
-  Alter table user_TitleRate add constraint userTitleRate_fkey2 foreign key (userid) references  users (userid) ;
+	Alter table user_TitleRate add constraint userTitleRate_fkey2 foreign key (userid) references  users (userid) ;
 	
   
 		
@@ -376,43 +388,107 @@ $$;
 
 /* D.3 finished*/ 
 
-drop function if exists rATE(int,varchar,int)  ;
+ drop function if exists rATE(int,int,varchar)  ;
 
-create or replace function  rate(USERID int, tconst varchar(200), rate int) 
+create or replace function  rate(USERID int, tconst varchar(200) ,rate int   ) 
 
 returns table (
   
-  tconst varchar(200), primarytitle text, numvotes int, averagerating numeric
+  tconst_ varchar(200), primarytitle text, numvotes int, averagerating numeric
 	)    
-language sql
-as $$
-
- insert into user_titlerate(userID,tconst,individRating_Title,usertitlerate_date) 
-values  (USERID,tconst,rate ,CURRENT_DATE)  
-;
+AS $$
  
+    DECLARE
+        UserHasRated boolean;
+				declare samerating boolean;
+				restore boolean;
+    BEGIN
+          
+		IF  EXISTS (select user_titlerate.tconst, user_titlerate.userid from user_titlerate where rate.userid = user_titlerate.userid and user_titlerate.tconst = rate.tconst)
+		       /* if a user already has rated a movie, the UserHasRated boolean returns true */
+					then UserHasRated := 'true' ;
+				
+				else UserHasRated := 'false' ;   
+				 
+				end if; /* ends if statement*/
+				
+				IF EXISTS (select  user_titlerate.userid, user_titlerate.tconst, individrating_title 
+				from user_titlerate 
+				where rate.userid = user_titlerate.userid and user_titlerate.tconst = rate.tconst and rate = individrating_title  ) then
+				
+				 /* if a user has already rated a movie, and tries to rate the same movie with the same value, 
+					samerating boolean returns true and nothing will change in any table */
+
+				  
+				samerating := 'true' ; 
+				
+				else  samerating := 'false' ; 
+				
+				end if;
+			   
+				if UserHasRated = 'true' and samerating = 'false' then restore := 'true';
+	/* if user has already rated a tconst, and attempts to give it a different rating this time, 
+	then update averagerating and the individrating */
+	
+			  update title_Basicsnew 
+			 set averagerating =  round(((title_Basicsnew.averagerating) * (title_Basicsnew.numvotes )
+	 -(select individrating_title from user_titlerate where rate.tconst = user_titlerate.tconst and
+					 user_titlerate.userid = rate.userid)  +  rate)  / (title_Basicsnew.numvotes),9 )  
+	 where title_Basicsnew.tconst = rate.tconst ;
+	 
+  RETURN QUERY 
+   select  title_basicsnew.tconst ,title_basicsnew.primarytitle , title_basicsnew.numvotes  , title_basicsnew.averagerating 
+   from title_basicsnew 
+   where title_basicsnew.tconst= rate.tconst;
+				 else  restore := 'false';
+				 
+				end if ;
+				
+				if restore = 'true'
+				/* only update the individrating AFTER the average number has been updated,so the function can rollback the averagerating value */
+				then 
+					 update user_titlerate set individrating_title = rate where rate.tconst = user_titlerate.tconst and
+					 user_titlerate.userid = rate.userid; 
+					 end if;
+					 
+				if UserHasRated = 'false' then   
+				 /* if the user has never rated the movie, create rows in user_titlerate and update averagerating and numvotes in title_basicsnew */
+	  insert into user_titlerate(userID,individrating_title,tconst,usertitlerate_date) 
  
-
-	 update title_Basicsnew set averagerating =  round((averagerating * numvotes 
-	 +  (select sum(individRating_Title)  from user_titlerate where user_titlerate.tconst = rate.tconst)) / (numvotes  +(select count(individRating_Title)  from user_titlerate where user_titlerate.tconst = rate.tconst)),2 )   where title_Basicsnew.tconst = rate.tconst ;
+        values  (USERID, rate ,tconst,CURRENT_DATE) 
+                                    ;
+					 												
+		 update title_basicsnew 
+		 set  numvotes =    title_basicsnew.numvotes +
+ (select count( user_titlerate.tconst ) / count( user_titlerate.tconst )   
+ from user_titlerate   
+ where  rate.tconst =  user_titlerate.tconst and rate.userid = user_titlerate.userid )  
+ where title_Basicsnew.tconst = rate.tconst  ;																
+ 		 
+		 	 update title_Basicsnew 
+			 set averagerating =  round((title_Basicsnew.averagerating * (title_Basicsnew.numvotes -1)
+	 +  rate) / (title_Basicsnew.numvotes),9 )  
+	 where title_Basicsnew.tconst = rate.tconst ;
 	 
-	 /* the averagerating number gets rounded to only return 2 decimals, using the round() function. */
 	 
-	 update title_basicsnew set numvotes =    numvotes +
- (select count( user_titlerate.tconst ) / count( user_titlerate.tconst )    from user_titlerate   where  rate.tconst =  user_titlerate.tconst and rate.userid = user_titlerate.userid )   where title_Basicsnew.tconst = rate.tconst  ; 
-	 
-	 
-select title_basicsnew.tconst,primarytitle,numvotes, averagerating from title_Basicsnew where title_Basicsnew.tconst = rate.tconst
-$$; 
-
-select * from rate(1,varchar 'tt11533744',1);
-select * from rate(1,varchar 'tt0108549',1);
-
-select * from rate(2,varchar 'tt1329304',3);
-
-select * from rate(3,varchar 'tt11212794',6);
+         RETURN QUERY 
+				 select  title_basicsnew.tconst ,title_basicsnew.primarytitle , title_basicsnew.numvotes  , title_basicsnew.averagerating 
+				 from title_basicsnew 
+				 where title_basicsnew.tconst= rate.tconst
+               ;
+			 
+			   END IF;  
+    END;
+		 
+$$ 
+LANGUAGE plpgsql;
   
-select * from rate(4,varchar 'tt11528776',8);
+select * from rate(1, 'tt9910206',7 );
+ 
+select * from Rate(1, 'tt9910206',8);
+
+select * from Rate(1,'tt9910206',7);
+ 
 
 /*not finished 
 
