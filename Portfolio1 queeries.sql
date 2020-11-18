@@ -385,12 +385,6 @@ $$;
  
 /* Here we used a function that returns a table as a result.  Then we inserted the values into in search_history, therefore we used a concatenation operator which linked titles, plot, characters and Names.  The Natural join was used because  it considers only those pairs of tuples with the same value on those attributes that appear in the schemas of both relations.  As the function needs to be flexible in the sense it doesn’t care about case of letter, we used the ‘lower function’ that converts all letters in the specified stringiest to lowercase. For this purpose we could also use ‘upper function’ which would convert all letters in the specified string to uppercase. At the end we used a select statement of userid, Titles, Plot, Characters and Names and the result was respective tconst and primary title. */
 
-
-/*select 'User has already given this rating to this title' as Notice */
-
-/*return query select 'User has already given this rating to this title' as Notice; */
-
-
 drop function if exists rATE(int,varchar,int)  ;
 
 create or replace function  rate(USERID int, tconst varchar(200) ,rate int   ) 
