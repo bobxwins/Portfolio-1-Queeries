@@ -482,7 +482,7 @@ AS $$
 $$ 
 LANGUAGE plpgsql;
   
-select * from rate(1, 'tt9910206',8 );
+select * from rate(1, 'tt9910206',6 );
  
  
 
