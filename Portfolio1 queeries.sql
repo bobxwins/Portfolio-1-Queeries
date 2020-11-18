@@ -388,7 +388,7 @@ $$;
 
 /* D.3 finished*/ 
 
- drop function if exists rATE(int,int,varchar)  ;
+ drop function if exists rATE(int,varchar,int)  ;
 
 create or replace function  rate(USERID int, tconst varchar(200) ,rate int   ) 
 
