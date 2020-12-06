@@ -3,11 +3,11 @@
 
 drop table if exists users CASCADE ;
 create table users (
-UserID serial primary key, 
+UserID serial primary key   , 
 name varchar(200),
 age int,
-USERNAME varchar(200),language varchar(200)
-
+USERNAME varchar(200),language varchar(200),
+password varchar (20), salt varchar (30)
 )
 ;
 insert into users(name,age,username,language)
@@ -57,10 +57,6 @@ UserID int,
 tconst varchar(200))
 ;
 
-insert into bookmarkTITLEs (userid)
-select userid from users;
-
-UPDATE bookmarkTitles SET tconst = 'tt10850402' WHERE userid > 0 and tconst is null ;
 
 /* bookmarkpersons */
 
@@ -70,10 +66,7 @@ UserID int,
 nconst varchar(200))
 ;
 
-insert into bookmarkpersons (userid)
-select userid from users;
 
-UPDATE bookmarkpersons SET nconst = 'nm0000015' WHERE userid > 0 and nconst is null ;
 
 /* DIRECTORS */
 
@@ -88,9 +81,8 @@ nconst text
  ); 
 INSERT INTO directors( tconst,nconst)
 
-SELECT tconst, regexp_split_to_table(directors,',')  from title_Crew 
+SELECT distinct (tconst), regexp_split_to_table(directors,',')  from title_Crew ;
 
- ; 
 
 
  /*NAME_basicsNEW */
@@ -99,13 +91,15 @@ SELECT tconst, regexp_split_to_table(directors,',')  from title_Crew
 drop table if exists name_basicsNew cascade;
 create table name_basicsNew (
 
-nconst    varchar(800)    ,
+nconst    varchar(10) ,
 
 primaryname varchar(256),
 
-birthyear bpchar(800),
+birthyear bpchar(4),
 
-deathyear bpchar(600),
+deathyear bpchar(4),
+
+ 
 
 primary key (nconst)
  
@@ -113,8 +107,8 @@ primary key (nconst)
 
 
 
-INSERT INTO name_basicsNEW(  nconst, primaryname, birthyear, deathyear)
-SELECT nconst, primaryname, birthyear, deathyear   
+INSERT INTO name_basicsNEW(   nconst, primaryname, birthyear, deathyear)
+SELECT distinct nconst, primaryname, birthyear, deathyear  
 from name_basics ;
 
 
@@ -150,8 +144,9 @@ titletype  varchar(800),
 		 awards varchar (200), 
 		 plot text,
 		 averagerating decimal,
-		constraint valid_number 
-      check (averagerating <= 10), 
+	 constraint valid_number 
+      check (averagerating <= 10 and averagerating >=0), 
+
 		 numvotes int
  
  
@@ -177,10 +172,11 @@ SELECT distinct title_Basics.tconsT, titleType,primarytitle,
 		runtimeminutes , poster, awards, plot, averagerating, numvotes
       from title_basics natural left outer join omdb_data natural left outer join title_ratings 
 			 
-
  ; 
  
-
+ update title_basicsnew set numvotes = 0, averagerating = 0
+   where numvotes is null or averagerating is null 
+;
 
 /*Title_ Genres */
 
@@ -195,32 +191,19 @@ genres  varchar(800)
 
  ); 
 INSERT INTO title_genre( tconst,genres)
-SELECT tconst, regexp_split_to_table(genres,',')  from title_basics 
+SELECT distinct( tconst), regexp_split_to_table(genres,',')  from title_basics 
 
  ; 
 
 
- 
-
-/*UserNameRate */
-drop table if exists user_NameRate;
-create table user_NameRate(
-UserID int REFERENCES users(userid),
-Name_individRating int , constraint valid_number 
-      check (Name_individRating <= 10 and Name_individRating > 0),
-nconst varchar(200), userNameRate_Date date)
- 
-;
-
-
 /*UserTitleRate */
+drop table if exists user_namerate;
 
 drop table if exists user_TitleRate;
 create table user_TitleRate(
-UserID int REFERENCES users(userid),
+UserID int REFERENCES users(userid) ON DELETE CASCADE ,
 individRating_Title int , 
-constraint valid_number 
-check (individRating_Title <= 10 and individRating_Title > 0),
+
 			
 tconst varchar(200), userTitleRate_Date date )
 
@@ -239,28 +222,39 @@ tconst VARCHAR(55),
 
  ); 
 INSERT INTO writers( tconst,writers)
-SELECT tconst, regexp_split_to_table(writers,',')  from title_Crew 
+SELECT distinct tconst, regexp_split_to_table(writers,',')  from title_Crew 
 
  ; 
+ /* Title_principals */
 
+ALTER TABLE title_principals 
+DROP COLUMN   IF EXISTS  NameRating cascade;
 
-/* Set column to foreign key */
+alter table title_principals add column
+
+NameRating numeric constraint valid_number 
+      check (NameRating <= 10 and NameRating>= 0)
+;
+update title_principals
+set NameRating = 0;
+ 
+/* Adding Foreign Keys and Primary Keys */
 
 ALTER TABLE title_basicsnew  drop CONSTRAINT if exists titlebasicsnew_pkey cascade ;
 
 ALTER TABLE title_basicsnew  ADD CONSTRAINT titlebasicsnew_pkey primary KEY (tconst) ;
 
-alter table bookmarkPERSOns add constraint BOOKperson_fk foreign key (nconst) references name_Basicsnew(nconst );
+alter table bookmarkPERSOns add constraint BOOKperson_fk foreign key (nconst) references name_Basicsnew(nconst ) ON DELETE CASCADE ;
 
-alter table bookmarkPERSOns add constraint BOOKMARKUSER_fk foreign key (userID) references USERS(USERID );
+alter table bookmarkPERSOns add constraint BOOKMARKUSER_fk foreign key (userID) references USERS(USERID ) ON DELETE CASCADE ;
 
 alter table bookmarkPERSOns drop constraint if exists BOOKMARKUSER_pkey ;
 
 alter table bookmarkPERSOns add constraint BOOKMARKUSER_pkey  PRIMARY key (userID,nconst);
  
- alter table bookmarkTITLES add constraint titlename_fk foreign key (tconst) references title_Basicsnew(tconst );
+ alter table bookmarkTITLES add constraint titlename_fk foreign key (tconst) references title_Basicsnew(tconst ) ON DELETE CASCADE ;
 
-alter table bookmarkTITLES add constraint user_FK foreign key (userid) REFERENCES users(userid);
+alter table bookmarkTITLES add constraint user_FK foreign key (userid) REFERENCES users(userid) ON DELETE CASCADE ;
 
 alter table bookmarkTitles drop constraint if exists BOOKMARKTitles_pkey;
 
@@ -269,7 +263,7 @@ alter table bookmarkTitles add constraint BOOKMARKTitles_pkey  PRIMARY key (user
 ALTER TABLE  actors_known_for_titles drop CONSTRAINT if exists ActorsKnown_pkey; 
  
  ALTER TABLE  actors_known_for_titles ADD CONSTRAINT ActorsKnown_pkey PRIMARY KEY (nconst,knownfortitles) ;
-  ALTER TABLE  actors_known_for_titles ADD CONSTRAINT nconst_actor FOREIGN KEY (nconst) REFERENCES name_basicsNEW(nconst) ;
+  ALTER TABLE  actors_known_for_titles ADD CONSTRAINT nconst_actor FOREIGN KEY (nconst) REFERENCES name_basicsNEW(nconst) ON DELETE CASCADE  ;
  
  ALTER TABLE  actors_profession drop CONSTRAINT if exists Actorsprofession_pkey;
  
@@ -277,81 +271,61 @@ ALTER TABLE  actors_known_for_titles drop CONSTRAINT if exists ActorsKnown_pkey;
  
 
 
-ALTER TABLE  actors_profession ADD CONSTRAINT nconst_prof FOREIGN KEY (nconst) REFERENCES name_basicsnew(nconst) ;
+ALTER TABLE  actors_profession ADD CONSTRAINT nconst_prof FOREIGN KEY (nconst) REFERENCES name_basicsnew(nconst) ON DELETE CASCADE  ;
 
-ALTER TABLE  directors ADD CONSTRAINT tconst_director FOREIGN KEY (tconst) REFERENCES title_basicsNEW(tconst) ;
+ALTER TABLE  directors ADD CONSTRAINT tconst_director FOREIGN KEY (tconst) REFERENCES title_basicsNEW(tconst) ON DELETE CASCADE  ;
 
 ALTER TABLE  directors drop CONSTRAINT if exists directors_pkey;
 
 ALTER TABLE  directors ADD CONSTRAINT directors_pkey primary KEY (tconst,nconst);
 
-ALTER TABLE  Search_history ADD CONSTRAINT UserID FOREIGN KEY (uSERID) REFERENCES uSERS(uSERID);
-
 alter table title_akas drop constraint if exists titleakas_fkey;
 
-ALTER TABLE  title_akas ADD CONSTRAINT titleakas_fkey FOREIGN KEY (titleid) REFERENCES title_basicsNEW(tconst) ;
+ALTER TABLE  title_akas ADD CONSTRAINT titleakas_fkey FOREIGN KEY (titleid) REFERENCES title_basicsNEW(tconst) ON DELETE CASCADE ;
 
 Alter table title_akas drop constraint if exists titleakas_pkey;
  
 ALTER TABLE title_akas  ADD CONSTRAINT titleakas_pkey primary KEY (titleid,ordering) ;
-
 
 Alter table title_episode drop constraint if exists titleEpisode_fkey;
 
 Alter table title_episode drop constraint if exists titleEpisode_pkey;
 ALTER TABLE title_episode  ADD CONSTRAINT titleEpisode_pkey primary KEY (tconst) ;
 		
-ALTER TABLE title_episode  ADD CONSTRAINT titleEpisode_fkey FOREIGN KEY (tconst) REFERENCES title_basicsNEW(tconst);
+ALTER TABLE title_episode  ADD CONSTRAINT titleEpisode_fkey FOREIGN KEY (tconst) REFERENCES title_basicsNEW(tconst) ON DELETE CASCADE ;
 		
-ALTER TABLE  title_genre ADD CONSTRAINT tconst FOREIGN KEY (tconst) REFERENCES title_basicsNEW(tconst) ;
+ALTER TABLE  title_genre ADD CONSTRAINT tconst FOREIGN KEY (tconst) REFERENCES title_basicsNEW(tconst) ON DELETE CASCADE  ;
 
 Alter table title_genre drop constraint if exists title_genre_pkey ;
 
-ALTER TABLE  title_genre ADD CONSTRAINT title_genre_pkey primary KEY (tconst,genres) ;
+ALTER TABLE  title_genre ADD CONSTRAINT title_genre_pkey primary KEY (tconst,genres)  ;
 
 Alter table title_ratings drop constraint if exists titleRatings_fkey;
 
  alter table title_principals drop constraint if exists titleprincipals_fkey;
  
- ALTER TABLE  title_principals ADD CONSTRAINT titleprincipals_fkey FOREIGN KEY (tconst) REFERENCES title_basicsNEW(tconst) ;
+ ALTER TABLE  title_principals ADD CONSTRAINT titleprincipals_fkey FOREIGN KEY (tconst) REFERENCES title_basicsNEW(tconst)  ON DELETE CASCADE ;
  
  Alter table title_principals drop constraint if exists titleprincipals_pkey ;
 
  ALTER TABLE title_principals ADD CONSTRAINT titleprincipals_pkey primary KEY (tconst,ordering) ;
 
-
- 
-  Alter table user_namerate drop constraint if exists user_nameRate_pkey;
-	
-	
- Alter table user_NameRate add constraint user_NameRate_pkey primary key (nconst,userid) ;
- 
- 
-  Alter table user_namerate drop constraint if exists user_nameRate_fkey;
-	
-   Alter table user_namerate drop constraint if exists user_nameRate_fkey2;
- 
- Alter table user_NameRate add constraint user_NameRate_fkey foreign key (nconst) references name_Basicsnew (nconst) ;
- 
-  Alter table user_NameRate add constraint user_NameRate_fkey2 foreign key (userid) references  users (userid) ;
- 
-  
   Alter table user_titlerate drop constraint if exists user_titleRate_pkey;
 	
   Alter table user_TitleRate add constraint user_TitleRate_pkey primary key (Tconst,userid) ;
 	
   Alter table user_titlerate drop constraint if exists user_titlerate_fkey;
-	  Alter table user_titlerate drop constraint if exists user_titlerate_fkey2;
-  Alter table user_TitleRate add constraint userTitleRate_fkey foreign key (tconst) references  title_Basicsnew (tconst) ;
-	Alter table user_TitleRate add constraint userTitleRate_fkey2 foreign key (userid) references  users (userid) ;
+	Alter table user_titlerate drop constraint if exists user_titlerate_fkey2;
+  Alter table user_TitleRate add constraint userTitleRate_fkey foreign key (tconst) references  title_Basicsnew (tconst)  ON DELETE CASCADE ;
+	Alter table user_TitleRate add constraint userTitleRate_fkey2 foreign key (userid) references  users (userid) ON DELETE CASCADE ;
 	
   
 		
 ALTER TABLE wi drop CONSTRAINT if exists wi_fkey;
 
-alter table wi add constraint wi_fkey foreign key (tconst) references title_basicsnew(tconst);
+alter table wi add constraint wi_fkey foreign key (tconst) references title_basicsnew(tconst) ON DELETE CASCADE ;
 
- ALTER TABLE  writers ADD CONSTRAINT tconst_fkey FOREIGN KEY (tconst) REFERENCES title_basicsNEW(tconst) ;
+ ALTER TABLE  writers ADD CONSTRAINT tconst_fkey FOREIGN KEY (tconst) REFERENCES title_basicsNEW(tconst) ON DELETE CASCADE  ;
  
   ALTER TABLE  writers ADD CONSTRAINT Writers_pkey primary KEY (tconst,writers);
 
@@ -381,17 +355,19 @@ where plot like '%'||strings||'%' or title_basicsnew.primarytitle like '%'||stri
  
 $$;
  
- select * from  string_search( 1, varchar 'Smart') ;
+ select * from  string_search( 2, varchar 'Doo') ;
  
 /* Here we used a function that returns a table as a result.  Then we inserted the values into in search_history, therefore we used a concatenation operator which linked titles, plot, characters and Names.  The Natural join was used because  it considers only those pairs of tuples with the same value on those attributes that appear in the schemas of both relations.  As the function needs to be flexible in the sense it doesn’t care about case of letter, we used the ‘lower function’ that converts all letters in the specified stringiest to lowercase. For this purpose we could also use ‘upper function’ which would convert all letters in the specified string to uppercase. At the end we used a select statement of userid, Titles, Plot, Characters and Names and the result was respective tconst and primary title. */
-/* D.3 */
-drop function if exists rATE(int,varchar,int)  ;
 
-create or replace function  rate(USERID int, tconst varchar(200) ,rate int   ) 
+/* D.3 */
+
+drop function if exists Rate(int,varchar,int)  ;
+
+create or replace function  Rate(USERID int, tconst varchar(200) ,rate int   ) 
 
 returns table (
   
-  tconst_ varchar(200), primarytitle text, numvotes int, MyRating numeric
+  tconst_ varchar(200), primarytitle text, numvotes int, average numeric
 	)    
 AS $$
  
@@ -414,7 +390,7 @@ AS $$
 				where rate.userid = user_titlerate.userid and user_titlerate.tconst = rate.tconst and rate = individrating_title  ) then
 				
 				 /* if a user has already rated a movie, and tries to rate the same movie with the same value, 
-					samerating boolean returns true and nothing will change in any table */
+					samerating boolean returns true  */
  
 				samerating := 'true' ; 
 				 RETURN QUERY select  title_basicsnew.tconst , CONCAT('You have already given "',title_basicsnew.primarytitle, '" this rating')     , title_basicsnew.numvotes, title_basicsnew.averagerating from title_basicsnew where title_basicsnew.tconst= rate.tconst;
@@ -426,9 +402,13 @@ AS $$
 				if UserHasRated = 'true' and samerating = 'false' then restore := 'true';
 	/* if user has already rated a tconst, and attempts to give it a different rating this time, 
 	then update averagerating */
-	
+	RETURN QUERY 
+   select  title_basicsnew.tconst ,title_basicsnew.primarytitle , title_basicsnew.numvotes  , title_basicsnew.averagerating 
+   from title_basicsnew 
+   where title_basicsnew.tconst= rate.tconst; /* query to show the data before it's modified */
+	 
 			  update title_Basicsnew 
-			 set averagerating =  round(((title_Basicsnew.averagerating) * (title_Basicsnew.numvotes )
+			 set averagerating =  round(((title_Basicsnew.averagerating) * (title_Basicsnew.numvotes ) /*subtract with previous rating, to restore */
 	 -(select individrating_title from user_titlerate where rate.tconst = user_titlerate.tconst and
 					 user_titlerate.userid = rate.userid)  +  rate)  / (title_Basicsnew.numvotes),2 )  
 	 where title_Basicsnew.tconst = rate.tconst ;
@@ -454,14 +434,19 @@ AS $$
  
         values  (USERID, rate ,tconst,CURRENT_DATE) 
                                     ;
-					 												
+																		
+			    RETURN QUERY 
+				 select  title_basicsnew.tconst ,title_basicsnew.primarytitle , title_basicsnew.numvotes  , title_basicsnew.averagerating 
+				 from title_basicsnew 
+				 where title_basicsnew.tconst= rate.tconst															
+					 												;
 		 update title_basicsnew 
 		 set  numvotes =( title_basicsnew.numvotes +1)   
  from user_titlerate
  where title_Basicsnew.tconst = rate.tconst and user_titlerate.userid = rate.userid  ;																
  		 
 		 	 update title_Basicsnew 
-			 set averagerating =  round((title_Basicsnew.averagerating * (title_Basicsnew.numvotes -1)
+			 set averagerating =  round((title_Basicsnew.averagerating * (title_Basicsnew.numvotes -1) /* minus the new numvote that was just added */
 	 +  rate) / (title_Basicsnew.numvotes),2 )  
 	 where title_Basicsnew.tconst = rate.tconst ;
 	  
@@ -475,10 +460,10 @@ AS $$
     END;
 		 
 $$ 
-LANGUAGE plpgsql;
-   
-select * from rate(2, 'tt9910206',6 );
- 
+LANGUAGE plpgsql;  
+
+select * from rate(2, 'tt10596294',6 );
+
  
 
 /*not finished 
@@ -520,10 +505,10 @@ select * from structured_string_search (2,'','see','','Mads miKKelsen');
 
 /* D.5.*/
 
-create or replace function names_string_search (Titles varchar(200),Plot text,Characters varchar(200) )
+create or replace function names_string_search (Titles varchar(10),Plot text,Characters text )
 RETURNS TABLE
-(nconst char(200),
-primaryname varchar(800)
+(nconst char(10),
+primaryname varchar(256)
 )
 
 language sql as 
@@ -543,16 +528,66 @@ select * from names_string_search('Auf allen Meeren','', '');
 create or replace view casting as 
 select tconst,primarytitle,nconst,primaryname from title_basicsnew natural join title_principals natural join name_basicsnew;
 
-select primaryname,nconst, count(*) from casting  
-where primaryname != 'Richard Burton' and tconst in (
+ drop function if exists findcoplayer(varchar (256))  ;
+
+create or replace function  findCoPlayer(personname varchar (256)) 
+
+returns table (primaryname varchar(256), nconst_ char(10), count bigint)    
+AS $$ BEGIN
+  
+return query 
+
+select casting.primaryname,nconst, count(*) from casting  
+where casting.primaryname != personname and tconst in (
 select tconst from title_principals natural join name_basicsnew
-where primaryname like 'Richard Burton')  
+where name_basicsnew.primaryname like personname)  
 group by casting.primaryname, nconst order by count(*) desc limit 12 ;
 
+    END;
+		 
+$$ 
+LANGUAGE plpgsql;
  
-/* Firstly, a view called casting was created, because it provides abstractions over tables and the fields can be easily removed in a view without modifying the schema. The Natural join was used because it considers only those pairs of tuples with the same value on those attributes that appear in the schemas of both relations. There is also a COUNT function because it was necessary to count the number of non-empty values in the column, on the other hand if we had used SUM function, we would get the sum of all values in the column. */ 
+ select * from findCoPlayer('Richard Burton');
+ 
+ /* Firstly, a view called casting was created, because it provides abstractions over tables and the fields can be easily removed in a view without modifying the schema. The Natural join was used because it considers only those pairs of tuples with the same value on those attributes that appear in the schemas of both relations. There is also a COUNT function because it was necessary to count the number of non-empty values in the column, on the other hand if we had used SUM function, we would get the sum of all values in the column. */ 
+ 
 
+/*D.7 */
+/* the input is variadic array of characters, doesnt work properly if you give more than 1 parameter tho */
 
+ drop function if exists NameRate(char [])  ;
+
+create or replace function  NameRate(VARIADIC nconst char(100) []) 
+
+returns table (
+  
+  tconst char(10), nconst_ char(10), namerating_ numeric
+	)    
+AS $$
+  
+    BEGIN
+		 RETURN QUERY 
+				 select  title_principals.tconst,title_principals.nconst,title_principals.namerating
+				 from title_principals where title_principals.nconst = any(namerate.nconst) order by nconst;
+ 
+  update title_principals set namerating = round(fromclause.SumWeight,2) from   unnest(namerate.nconst) as unnested, 
+ (select sum(numvotes*averagerating) / sum(numvotes) as SumWeight from   title_basicsnew natural join title_principals where numvotes>0 and title_principals.nconst = any(namerate.nconst) )fromclause where title_principals.nconst= any(namerate.nconst) ; 
+  /* the function above uses a from-clause,because you cannot use aggregate functions inside an update statement, unless they are inside a subquery */
+	
+ RETURN QUERY 
+				 select  title_principals.tconst ,title_principals.nconst,title_principals.namerating
+				 from title_principals where title_principals.nconst = any(namerate.nconst) order by nconst;
+    END; $$ 
+LANGUAGE plpgsql;  select * from namerate('nm0000008'); select * from namerate('nm0000002') ;
+
+/*select * from namerate('nm0000002','nm0000003'); */
+  /* functions doesnt work properly if you type in more than 1 parameter in 1 call */
+	
+	
+	 /*unnesteed, change from variadic to the above , use strpos reg
+ 
+ select regexp_split_to_table(namestring.nconst,',') as namenconst */
 
 /* D.9 */
 
@@ -565,7 +600,6 @@ group by casting.primaryname, nconst order by count(*) desc limit 12 ;
 /* We will just use the inverted index that’s already in the WI table. */
 
 
-/* not sure if its correct */ 
 drop function if exists Wi_Search(char);
 
 create or replace function Wi_search(strings char(800))
@@ -584,6 +618,7 @@ FROM wi where word = strings
 $$;
 
 select * from wi_search(char 'religious');
+
 
 
 /*D.11*/ 
@@ -636,6 +671,8 @@ select PLOT,primarytitle from title_Basicsnew where strpos(plot,strings) > 0 or 
 $$;
 
  select * from exact_search(char 'Morgan Freeman');
+ 
+ 
 
 /* D.12 */
 
@@ -655,15 +692,15 @@ SELECT * FROM bestmatchANY('Apple','mads', 'Mikkelsen','hey','apples','apple')
 
 drop function if exists WORDweight (text []);
  CREATE OR REPLACE FUNCTION wordweight
-(VARIADIC w1 text[])
+(VARIADIC word_array text[])
 RETURNS TABLE (tconst char(10), rank_string text, title text)
 AS $$
-select  title_Basicsnew.tconst,   string_Agg(distinct((word)),' ') rank, primarytitle from title_basicsnew natural join wi  where word = any (w1) group by title_Basicsnew.tconst,primarytitle  order by count(distinct(word )) desc  
+select  title_Basicsnew.tconst,   string_Agg(distinct((word)),' ')  rank, primarytitle from title_basicsnew natural join wi  where word = any (word_array) group by title_Basicsnew.tconst,primarytitle  order by count(distinct(word )) desc  
 $$
 LANGUAGE 'sql';
 SELECT * FROM wordweight('apple','mads', 'mikkelsen','hey','apples','apple');
 
 ;
-
-
-
+ /* queery below will only work in the rawdata_large database, due to the fact that in the rawdata_small database, the table name_basics is missing some nconst values that title_principals has. This is not the case in the rawdata_large database, name_basics and title_principals have the exact same nconst, so title_principals can reference name_basics in the large database. */
+ Alter table title_principals add constraint titleprincipals_fkey2 foreign key (nconst) references name_Basicsnew (nconst) ;
+ 
