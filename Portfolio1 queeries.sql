@@ -2,19 +2,20 @@
 /*Users */
 
 drop table if exists users CASCADE ;
-create table users (
-UserID serial primary key   , 
+create table users (  
+UserID int primary key GENERATED ALWAYS AS IDENTITY (minvalue 0 START WITH 0)  , 
 name varchar(200),
 age int,
-USERNAME varchar(200),language varchar(200),
-password varchar (20), salt varchar (30)
+USERNAME varchar(200) unique,language text,
+password varchar (20) not null
 )
 ;
-insert into users(name,age,username,language)
-values ('Ali',30,'ali@ruc.dk','[Danish, English]'),
-('Bob-Winston',23,'bob@ruc.dk','[Danish, English]'),
-( 'Lenka',23,'lenka@ruc.dk','[English, Slovac]'),
-('Konstantin',23,'konstantin@ruc.dk','[English, Russian]')
+insert into users(name,age,username,language,password)
+values ('Dummy',0,'dummy','',''),
+('Ali',30,'ali@ruc.dk','[Danish, English]','1'),
+('Bob-Winston',23,'bob','[Danish, English]','2'),
+( 'Lenka',23,'lenka@ruc.dk','[English, Slovac]','3'),
+('Konstantin',23,'konstantin@ruc.dk','[English, Russian]','4')
 ;
 
 
@@ -68,6 +69,10 @@ nconst varchar(200))
 
 
 
+/*insert into bookmarkpersons(nconst,userid)
+values ('nm0000008',1) 
+; */
+
 /* DIRECTORS */
 
 drop table if exists directors;
@@ -118,7 +123,7 @@ from name_basics ;
 drop table if exists Search_History ;
 create table search_history (
 UserID int,
-search_input varchar(200),
+stored_input varchar(200),
 search_Date date
  )
 ;
@@ -131,9 +136,9 @@ drop table if exists Title_BasicsNEW cascade ;
 create table Title_BasicsNEW(
 
  
-tconst VARCHAR(55),
+tconst CHAR(10),
 
-titletype  varchar(800),
+titletype  varchar(20),
  primaryTitle text,
   originalTitle text,
       isadult bool,
@@ -185,8 +190,8 @@ drop table if exists title_genre;
 create table title_genre(
 
  
-tconst VARCHAR(55),
-genres  varchar(800)
+tconst CHAR(10),
+genres  varchar(256)
 
 
  ); 
@@ -205,7 +210,7 @@ UserID int REFERENCES users(userid) ON DELETE CASCADE ,
 individRating_Title int , 
 
 			
-tconst varchar(200), userTitleRate_Date date )
+tconst char(10), userTitleRate_Date date )
 
  
 ;
@@ -215,7 +220,7 @@ drop table if exists writers;
 create table writers(
 
  
-tconst VARCHAR(55),
+tconst CHAR(10),
 
  writers  text
  
@@ -340,22 +345,30 @@ drop function if exists string_Search(userid int, strings varchar(800));
 create or replace function string_search(userid int, strings varchar(800))
 
 returns table (
-  
+  tconst char(10),
   primarytitle text
 )    
-language sql
+language plpgsql
 as $$
 
-insert into search_history( userid, search_input, search_date) 
-VALUES (userid, strings, CURRENT_DATE) ; 
+DECLARE
+      
+    BEGIN
+ 		IF  (userid > 0)
+ then 
+insert into search_history( userid, stored_input, search_date) 
+VALUES (userid, strings, CURRENT_DATE) ;   
 
-select title_basicsnew.primarytitle 
+end if;
+return query select title_basicsnew.tconst, title_basicsnew.primarytitle 
 from title_basicsnew
-where plot like '%'||strings||'%' or title_basicsnew.primarytitle like '%'||strings||'%';
- 
+where title_basicsnew.plot like '%'||strings||'%' or title_basicsnew.primarytitle like '%'||strings||'%';
+    END;
 $$;
  
- select * from  string_search( 2, varchar 'Doo') ;
+ select * from  string_search( 0, varchar 'hey me') ;
+ 
+  select * from  string_search( 2, varchar 'hey man') ;
  
 /* Here we used a function that returns a table as a result.  Then we inserted the values into in search_history, therefore we used a concatenation operator which linked titles, plot, characters and Names.  The Natural join was used because  it considers only those pairs of tuples with the same value on those attributes that appear in the schemas of both relations.  As the function needs to be flexible in the sense it doesn’t care about case of letter, we used the ‘lower function’ that converts all letters in the specified stringiest to lowercase. For this purpose we could also use ‘upper function’ which would convert all letters in the specified string to uppercase. At the end we used a select statement of userid, Titles, Plot, Characters and Names and the result was respective tconst and primary title. */
 
@@ -363,11 +376,11 @@ $$;
 
 drop function if exists Rate(int,varchar,int)  ;
 
-create or replace function  Rate(USERID int, tconst varchar(200) ,rate int   ) 
+create or replace function  Rate(USERID int, tconst char(10) ,rate int   ) 
 
 returns table (
   
-  tconst_ varchar(200), primarytitle text, numvotes int, average numeric
+  tconst_ char(10), primarytitle text, numvotes int, average numeric
 	)    
 AS $$
  
@@ -402,16 +415,20 @@ AS $$
 				if UserHasRated = 'true' and samerating = 'false' then restore := 'true';
 	/* if user has already rated a tconst, and attempts to give it a different rating this time, 
 	then update averagerating */
+	
+		/* only update the individrating AFTER the average number has been updated,so the function can rollback the averagerating value */
 	RETURN QUERY 
    select  title_basicsnew.tconst ,title_basicsnew.primarytitle , title_basicsnew.numvotes  , title_basicsnew.averagerating 
    from title_basicsnew 
    where title_basicsnew.tconst= rate.tconst; /* query to show the data before it's modified */
 	 
 			  update title_Basicsnew 
-			 set averagerating =  round(((title_Basicsnew.averagerating) * (title_Basicsnew.numvotes ) /*subtract with previous rating, to restore */
+			 set averagerating =  round(((title_Basicsnew.averagerating) * (title_Basicsnew.numvotes )
 	 -(select individrating_title from user_titlerate where rate.tconst = user_titlerate.tconst and
 					 user_titlerate.userid = rate.userid)  +  rate)  / (title_Basicsnew.numvotes),2 )  
 	 where title_Basicsnew.tconst = rate.tconst ;
+	 
+	 /* when user updates their previous rating, first subtract with previous rating, to delete the previous rating from the average, then add the new rating a user gave to the average */
 	 
   RETURN QUERY 
    select  title_basicsnew.tconst ,title_basicsnew.primarytitle , title_basicsnew.numvotes  , title_basicsnew.averagerating 
@@ -490,7 +507,7 @@ primarytitle text
 
 language sql as 
 $$
-insert into search_history(userid, search_input, search_date) 
+insert into search_history(userid, stored_input, search_date) 
 VALUES (userid, Titles|| ',' ||Plot|| ',' ||CHARACTERS|| ',' ||Names , CURRENT_DATE) ; 
 
 
@@ -585,9 +602,7 @@ LANGUAGE plpgsql;  select * from namerate('nm0000008'); select * from namerate('
   /* functions doesnt work properly if you type in more than 1 parameter in 1 call */
 	
 	
-	 /*unnesteed, change from variadic to the above , use strpos reg
  
- select regexp_split_to_table(namestring.nconst,',') as namenconst */
 
 /* D.9 */
 
@@ -605,7 +620,7 @@ drop function if exists Wi_Search(char);
 create or replace function Wi_search(strings char(800))
 
 returns table (
- tconst char(200), word text, field char (500), lexeme text)
+ tconst char(10), word text, field char (1), lexeme text)
  
     
 language sql
@@ -630,7 +645,7 @@ drop function if exists exact_Search(char,char);
 create or replace function exact_search(strings char(800), strings2 char(800))
 
 returns table (
- plot TEXT , primarytitle varchar(800), primaryname varchar(50), characters varchar(50)
+ plot TEXT , primarytitle text, primaryname varchar(256), characters text
  
 )    
 language sql
